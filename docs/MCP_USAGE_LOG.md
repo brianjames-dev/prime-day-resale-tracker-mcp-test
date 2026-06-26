@@ -1,50 +1,38 @@
-# MCP usage log
+# MCP usage log (incl. Amazon correction)
 
-Run date: 2026-06-26  
-Agent: Grok multi-MCP Prime Day resale tracker test
+## Correction pass (2026-06-26)
 
-## Firecrawl
+User feedback: prices must come from **Amazon**, not editorial recaps.
 
-| Tool | Purpose | Outcome |
-|------|---------|---------|
-| `firecrawl_search` | Find public Prime Day deal pages | OK — WIRED, CR, PCMag, NBC, YouTube |
-| `firecrawl_scrape` | WIRED under-$100 deals (JSON) | OK |
-| `firecrawl_scrape` | Consumer Reports tech deals (JSON) | OK |
-| `firecrawl_scrape` | PCMag day-3 deals | **Failed** — site not supported |
-| `firecrawl_scrape` | NBC Select Prime Day deals (JSON) | OK |
-
-Not used: crawl, agent, extract (scrape JSON sufficient).
-
-## Google Sheets
+### Firecrawl
 
 | Tool | Purpose | Outcome |
 |------|---------|---------|
-| `sheets_get_metadata` | Confirm existing spreadsheet + Items tab | OK — title Prime-Day-Grok-Test |
-| `sheets_insert_sheet` | Add **Price History** | OK |
-| `sheets_insert_sheet` | Add **Summary** | OK |
-| `sheets_batch_update_values` | Write Items, Price History, Summary | OK — 8 items, 16 history rows, 8 summary rows |
-| `sheets_create_chart` | Optional chart | Skipped (data-first; can add later on Summary) |
+| `firecrawl_search` | Resolve Amazon `/dp/` URLs by product name | OK |
+| `firecrawl_scrape` | Amazon PDPs (JSON: price, list, ASIN, badge) | OK for 8 ASINs |
 
-Spreadsheet ID: `1j-dRfrY7ZK0mpwTy0RsmyQOeQhs9XGxp5sHjaoHcZhk` (user-provided; not created by agent).
+Amazon PDPs scraped successfully (buy box + list). Some jobs throttled on concurrency; still returned prices.
 
-## GitHub
+### Google Sheets
 
 | Tool | Purpose | Outcome |
 |------|---------|---------|
-| `get_me` | Resolve owner login | `brianjames-dev` |
-| `create_repository` | `prime-day-resale-tracker-mcp-test` | OK — public |
-| `push_files` | README + docs/* | OK |
-| `issue_write` (create) ×3 | Follow-up issues | See issues on repo |
+| `sheets_clear_values` | Clear prior editorial-sourced rows | OK |
+| `sheets_batch_update_values` | Rewrite Items / Price History / Summary from Amazon | OK |
+
+### GitHub
+
+| Tool | Purpose | Outcome |
+|------|---------|---------|
+| `push_files` | Update SOURCES, METHOD, SCHEMA, MCP log, README | OK |
+
+## First pass (superseded for pricing)
+
+Editorial WIRED/CR/NBC scrapes used only for candidate discovery; PCMag blocked. Sheet no longer treats those as price sources.
 
 ## Blocked / limitations
 
-1. **PCMag** blocked by Firecrawl policy — used NBC Select instead to stay within URL budget.
-2. **No live Amazon PDP prices** — public editorial only; prices may lag.
-3. **List prices are proxies** for post-PD market until real `market_check` rows are appended.
-4. **Fees not modeled** (eBay/Amazon resale, shipping, tax).
-5. **Secrets:** did not open or commit service-account key files; Sheets access via host MCP + shared SA email only.
-6. **Vercel MCP** unavailable (auth) — not required for this test.
-
-## Local workspace note
-
-Tracker notes live under `sandbox/repos/prime-day-resale-tracker-mcp-test/` in agent-eval-lab (not lab root).
+- Amazon prices are **point-in-time** Firecrawl extracts (cache possible).
+- Coupons (e.g. Airwrap “Save $50”) may not reduce `current_price` field.
+- AirPods Pro 2 and Airwrap Origin showed **buy box = list** on Amazon at scrape → SKIP/WATCH.
+- No secret key files opened.

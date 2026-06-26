@@ -1,37 +1,35 @@
 # Method
 
-## Capture
+## Capture (Amazon-first)
 
-1. Discover public Prime Day deal roundups via Firecrawl **search** (editorial sites).
-2. **Scrape** ≤5 URLs with JSON extraction (name, current_price, list_price, category, brand).
-3. Curate 5–10 resale-friendly candidates (electronics / appliances / wearables).
-4. Write **Items** once with `prime_day_buy_cost` = observed deal price.
-5. Seed **Price History** with `prime_day_buy` and optional `list_at_capture_proxy` (was/list price).
-6. Refresh **Summary** signals from history.
+1. Discover candidate ASINs via Firecrawl **search** on `amazon.com` (product queries).
+2. **Scrape each Amazon PDP** (`/dp/ASIN`) with Firecrawl JSON extraction:
+   - `title`, `asin`, `current_price` (buy box), `list_price`, `deal_badge`, `availability`
+3. Write **Items** with `prime_day_buy_cost` = Amazon buy box; `list_price_on_amazon` = Amazon list/was; `amazon_product_url` + `asin`.
+4. Seed **Price History** with `amazon_buy_box` and `amazon_list_price` rows (source = Amazon PDP URL).
+5. Build **Summary** margins vs Amazon list as recovery proxy until post-event **Amazon rechecks** are appended.
+
+Editorial sites may inform *what* to search, never replace Amazon pricing for cost basis.
 
 ## Ongoing price checks (post Prime Day)
 
-1. Re-scrape the same editorial pages or other public market signals.
-2. Append `market_check` rows (do not mutate prior rows).
-3. Optionally append `resale_ask` from public resale listings when available.
-4. Recompute Summary: lowest price, is_at_lowest, margins.
+1. Re-scrape the **same Amazon PDP URLs** (same ASIN).
+2. Append `amazon_buy_box` (or `market_check`) rows — never overwrite history.
+3. Recompute lowest price, is_at_lowest, margins.
+4. Optional: public resale `resale_ask` rows later for realized sell price.
 
 ## Sell timing / margin signals
 
 | Signal | Rule (v0) |
 |--------|-----------|
-| **HOLD_FOR_RESALE** | Prime Day cost is lowest logged **and** proxy/resale margin ≥ ~25% of cost |
-| **WATCH** | Margin positive but < 25%, or insufficient history |
-| **SELL_WINDOW** | Latest market/resale ≥ potential target and not at lowest (market already rising; consider selling) |
-| **SKIP** | Margin ≤ 0 after fees (fees not modeled in v0) |
-
-**Profit margin (gross, pre-fee):**
+| **HOLD_FOR_RESALE** | Buy box &lt; list on Amazon **and** margin ≥ ~25% of cost |
+| **WATCH** | Thin/ambiguous discount (e.g. coupon only) |
+| **SELL_WINDOW** | Later Amazon/market price rises while cost basis was PD low |
+| **SKIP** | Buy box ≈ list (no arb entry on this scrape) |
 
 ```
-profit_margin_usd = potential_resale_proxy - prime_day_buy_cost
-profit_margin_pct = profit_margin_usd / prime_day_buy_cost
+profit_margin_usd = potential_resale_proxy - amazon_buy_box
+profit_margin_pct = profit_margin_usd / amazon_buy_box
 ```
 
-**Lowest price:** MIN(price) over Price History for that `item_id`.
-
-**Caveats:** Editorial prices lag Amazon; list proxies are not realized resale; platform fees/shipping/tax not included; this is an MCP integration test, not investment advice.
+**Caveats:** Firecrawl may cache PDPs; prices are point-in-time; coupons may not be in buy box field; fees not modeled.
